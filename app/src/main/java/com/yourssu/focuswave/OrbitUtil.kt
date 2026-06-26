@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.Path
 import kotlin.random.Random
 
 object OrbitUtil {
+
+    //pathSeed 기반으로 랜덤 경로를 생성하는 함수
     fun generateRandomOrbitPath(
         pathSeed: Int,
         width: Float,
@@ -37,31 +39,16 @@ object OrbitUtil {
     }
 
 
-    // 우주선 상태
-    // 0% : 출발 대기중
-    // 0~15% : 대기권 돌파중
-    // 15~25% : 대기권 이탈중
-    // 25~80% : 우주공간 이동중
-    // 80~99% : 달 착륙 준비중
-    // 100% : 달 착륙
+    // 진행률에 따른 우주선 상태를 String 으로 반환하는 함수
     fun getStateByProgress(progress: Float, isRunning: Boolean) : String {
-        return if (!isRunning) {
-            "잠시 멈춤"
-        }
-        else if (progress == 0f) {
-            "출발 대기중"
-        } else if (progress < 0.15f) {
-            "대기권 돌파중"
-        } else if (progress < 0.25f) {
-            "대기권 이탈중"
-        } else if (progress < 0.8f) {
-            "우주공간 이동중"
-        } else if (progress < 0.99f) {
-            "달 착륙 준비중"
-        } else if (progress == 1f) {
-            "달 착륙"
-        } else {
-            "신호 불안정"
-        }
+        return  if (progress == 0f) { "출발 대기중" }
+        else if (!isRunning) { "잠시 멈춤" }
+        else if (progress < 0.1f) { "대기권 돌파중" }
+        else if (progress < 0.2f) { "대기권 이탈중" }
+        else if (progress < 0.8f) { "달을 향해 비행중" }
+        else if (progress < 0.95f) { "달 궤도 진입중" }
+        else if (progress < 1f) { "착륙 하강중" }
+        else if (progress == 1f) { "달 착륙 완료" }
+        else { "신호 불안정" }
      }
 }

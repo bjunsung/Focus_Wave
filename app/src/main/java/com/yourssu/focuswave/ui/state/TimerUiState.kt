@@ -1,6 +1,7 @@
 package com.yourssu.focuswave.ui.state
 
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 data class TimerUiState(
     val focusMinutes: Int = DEFAULT_FOCUS_MINUTES,
@@ -10,7 +11,8 @@ data class TimerUiState(
     val phase: TimerPhase = TimerPhase.READY,
     val isRunning: Boolean = false,
     val activePhase: TimerPhase = TimerPhase.FOCUS,
-    val soundTracks: List<SoundTrackUiState> = defaultSoundTracks
+    val soundTracks: List<SoundTrackUiState> = defaultSoundTracks,
+    var pathSeed: Int = Random.nextInt()
 ) {
     val formattedTime: String
         get() {

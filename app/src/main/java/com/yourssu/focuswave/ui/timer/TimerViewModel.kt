@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 class TimerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(TimerUiState())
@@ -82,7 +83,9 @@ class TimerViewModel : ViewModel() {
                 remainingSeconds = currentState.focusMinutes * SECONDS_PER_MINUTE,
                 phase = TimerPhase.READY,
                 activePhase = TimerPhase.FOCUS,
-                isRunning = false
+                isRunning = false,
+                // 리셋버튼 클릭시 랜덤 경로로 초기화 로직 추가
+                pathSeed = uiState.value.pathSeed + 1
             ).withAllSoundsStopped()
         }
     }
@@ -218,6 +221,16 @@ class TimerViewModel : ViewModel() {
 
         return shouldContinue
     }
+
+
+    fun increasePathSeed() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                pathSeed = uiState.value.pathSeed + 1
+            )
+        }
+    }
+
 }
 
 private fun TimerUiState.withAllSoundsStopped(): TimerUiState = copy(

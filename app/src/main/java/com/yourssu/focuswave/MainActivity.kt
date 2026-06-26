@@ -58,60 +58,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             FocusWaveTheme {
                 MainScreen()
-    package com.yourssu.focuswave
-
-    import android.R.attr.id
-    import android.os.Bundle
-    import androidx.activity.ComponentActivity
-    import androidx.activity.compose.setContent
-    import androidx.activity.enableEdgeToEdge
-    import androidx.compose.foundation.Image
-    import androidx.compose.foundation.background
-    import androidx.compose.foundation.layout.Arrangement
-    import androidx.compose.foundation.layout.Box
-    import androidx.compose.foundation.layout.Column
-    import androidx.compose.foundation.layout.Row
-    import androidx.compose.foundation.layout.Spacer
-    import androidx.compose.foundation.layout.fillMaxSize
-    import androidx.compose.foundation.layout.fillMaxWidth
-    import androidx.compose.foundation.layout.height
-    import androidx.compose.foundation.layout.padding
-    import androidx.compose.foundation.layout.size
-    import androidx.compose.foundation.selection.selectable
-    import androidx.compose.foundation.shape.RoundedCornerShape
-    import androidx.compose.material3.Button
-    import androidx.compose.material3.Scaffold
-    import androidx.compose.material3.Text
-    import androidx.compose.material3.TimeInput
-    import androidx.compose.runtime.Composable
-    import androidx.compose.runtime.LaunchedEffect
-    import androidx.compose.runtime.getValue
-    import androidx.compose.runtime.mutableStateOf
-    import androidx.compose.runtime.remember
-    import androidx.compose.runtime.saveable.rememberSaveable
-    import androidx.compose.runtime.setValue
-    import androidx.compose.ui.Alignment
-    import androidx.compose.ui.Modifier
-    import androidx.compose.ui.graphics.Color
-    import androidx.compose.ui.layout.ContentScale
-    import androidx.compose.ui.res.painterResource
-    import androidx.compose.ui.tooling.preview.Preview
-    import com.yourssu.focuswave.ui.theme.FocusWaveTheme
-    import androidx.compose.ui.unit.dp
-    import androidx.compose.ui.unit.sp
-    import kotlinx.coroutines.delay
-    import kotlin.random.Random
-    import kotlin.random.nextInt
-
-
-    class MainActivity : ComponentActivity() {
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-            enableEdgeToEdge()
-            setContent {
-                FocusWaveTheme {
-                    MainScreen()
-                }
             }
         }
     }
@@ -128,6 +74,7 @@ fun MainScreen(
         onStartClick = timerViewModel::startTimer,
         onPauseClick = timerViewModel::pauseTimer,
         onResetClick = timerViewModel::resetTimer,
+        onNewPathClick = timerViewModel::increasePathSeed,
         onUpdateFocusMinutes = timerViewModel::updateFocusMinutes,
         onUpdateBreakMinutes = timerViewModel::updateBreakMinutes,
         onSoundEnabledChange = timerViewModel::setSoundEnabled,
@@ -141,6 +88,7 @@ private fun MainScreenContent(
     onStartClick: () -> Unit,
     onPauseClick: () -> Unit,
     onResetClick: () -> Unit,
+    onNewPathClick: () -> Unit,
     onUpdateFocusMinutes: (Int) -> Unit,
     onUpdateBreakMinutes: (Int) -> Unit,
     onSoundEnabledChange: (SoundTrackId, Boolean) -> Unit,
@@ -149,13 +97,14 @@ private fun MainScreenContent(
     SoundPlaybackEffect(soundTracks = uiState.soundTracks)
 
     FocusScreen(
-        timerProgress = uiState.progress,
+        uiState = uiState,
         timerOverlay = {
             TimerControlsPanel(
                 uiState = uiState,
                 onStartClick = onStartClick,
                 onPauseClick = onPauseClick,
                 onResetClick = onResetClick,
+                onNewPathClick = onNewPathClick,
                 onUpdateFocusMinutes = onUpdateFocusMinutes,
                 onUpdateBreakMinutes = onUpdateBreakMinutes
             )
@@ -164,39 +113,6 @@ private fun MainScreenContent(
             BreakCountdownOverlay(
                 isVisible = uiState.showBreakCountdown,
                 count = uiState.breakCountdownNumber
-    @Composable
-    fun MainScreen() {
-        var isRunning by rememberSaveable { mutableStateOf(true) }
-        var time by rememberSaveable { mutableStateOf(0) }
-        var totalTime by rememberSaveable { mutableStateOf(3600) }
-
-        val timeText = TimeUtil.formatTime(time)
-        val totalTimeText = TimeUtil.formatTime(totalTime)
-        val progress = time.toFloat() / totalTime.toFloat()
-
-        var pathSeed by rememberSaveable { mutableStateOf(Random.nextInt()) }
-
-        val status = OrbitUtil.getStateByProgress(progress, isRunning)
-
-
-
-        LaunchedEffect(isRunning) {
-            while(isRunning && time < totalTime) {
-                delay(1000L)
-                time++
-            }
-        }
-3
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-            ) {
-            //배경 이미지
-            Image(
-                painter = painterResource(id = R.drawable.space1_bg),
-                contentDescription = "우주배경",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
             )
         },
         soundMixerPanel = {
@@ -211,15 +127,14 @@ private fun MainScreenContent(
 
 @Composable
 private fun FocusScreen(
-    timerProgress: Float,
+    uiState: TimerUiState,
     timerOverlay: @Composable () -> Unit,
     countdownOverlay: @Composable () -> Unit,
     soundMixerPanel: @Composable () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        FocusScene(timerProgress = timerProgress)
-
+        FocusScene()
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent
@@ -229,10 +144,22 @@ private fun FocusScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 타이머 오버레이
                 timerOverlay()
-                Spacer(modifier = Modifier.weight(1f))
+
+                // 지구, 로켓, 달, 궤도 오버레이
+                OrbitSection(
+                    progress = uiState.progress,
+                    uiState.pathSeed,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                )
+
+                // 사운드 믹서 패널 오버레이
                 soundMixerPanel()
             }
         }
@@ -243,7 +170,6 @@ private fun FocusScreen(
 
 @Composable
 private fun FocusScene(
-    timerProgress: Float,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -252,37 +178,6 @@ private fun FocusScene(
             contentDescription = "Space background",
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
-        )
-
-        RocketLayer(progress = timerProgress)
-    }
-}
-
-@Composable
-private fun RocketLayer(
-    progress: Float
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(id = R.drawable.moon),
-            contentDescription = "Moon",
-            modifier = Modifier
-                .size(40.dp)
-                .align(Alignment.TopCenter)
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.rocket1),
-            contentDescription = "Rocket",
-            modifier = Modifier.size(40.dp)
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.earth),
-            contentDescription = "Earth",
-            modifier = Modifier
-                .size(40.dp)
-                .align(Alignment.BottomCenter)
         )
     }
 }
@@ -294,6 +189,7 @@ private fun TimerControlsPanel(
     onStartClick: () -> Unit,
     onPauseClick: () -> Unit,
     onResetClick: () -> Unit,
+    onNewPathClick: () -> Unit,
     onUpdateFocusMinutes: (Int) -> Unit,
     onUpdateBreakMinutes: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -302,7 +198,7 @@ private fun TimerControlsPanel(
 
     Column(
         modifier = modifier
-            .statusBarsPadding()
+            //.statusBarsPadding()
             .fillMaxWidth()
             .background(Color.White.copy(alpha = 0.12f), shape)
             .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)), shape)
@@ -325,81 +221,12 @@ private fun TimerControlsPanel(
                     color = Color.White.copy(alpha = 0.72f),
                     style = MaterialTheme.typography.bodySmall
                 )
-                    .padding(vertical = 16.dp),
-                containerColor = Color.Transparent
-            ) { innerPadding ->
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    //상단 정보창 (header)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterHorizontally)
-
-                    ) {
-                        Text(text = "비행 시간 ${timeText}", color = Color.White, fontSize = 18.sp)
-                        Text(text = "총 소요 시간 ${totalTimeText}", color = Color.White, fontSize = 18.sp)
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(text = "우주선 ${status}", color = Color.White, fontSize = 18.sp)
-                    }
-
-
-
-                    OrbitSection(
-                        progress = progress,
-                        pathSeed,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .background(Color.White.copy(alpha = 0.125f), shape = RoundedCornerShape(24.dp))
-                            .padding(24.dp)
-                    ) {
-                        // 일시정지, 재개 버튼
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Button(onClick = { /* 일시정지 로직 */
-                                isRunning = !isRunning
-                            }) {
-                                Text(
-                                    if (isRunning)
-                                    "일시정지"
-                                    else
-                                    "재개"
-                                )
-                            }
-                            Button(onClick = {
-                            /* 경로변경 로직 */
-                                pathSeed = Random.nextInt()
-                            }) { Text("경로변경") }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // 사운드 믹서 슬라이더 등...
-                        Text("SOUND MIXER", color = Color.White)
-                    }
-
-
-                }
+                // 진행률에 따른 우주선 상태 메시지
+                Text(
+                    text = "우주선 ${OrbitUtil.getStateByProgress(uiState.progress, uiState.isRunning)}",
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
 
             Text(
@@ -428,7 +255,7 @@ private fun TimerControlsPanel(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            maxItemsInEachRow = 3
+            maxItemsInEachRow = 4
         ) {
             TimerActionButton(
                 text = when (uiState.phase) {
@@ -447,6 +274,7 @@ private fun TimerControlsPanel(
                 enabled = uiState.isRunning
             )
             TimerActionButton(text = "RESET", onClick = onResetClick)
+            TimerActionButton(text = "NEW PATH", onClick = onNewPathClick)
         }
     }
 }
@@ -594,7 +422,10 @@ private fun BreakCountdownOverlay(
             modifier = Modifier
                 .size(168.dp)
                 .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(84.dp))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.24f)), RoundedCornerShape(84.dp))
+                .border(
+                    BorderStroke(1.dp, Color.White.copy(alpha = 0.24f)),
+                    RoundedCornerShape(84.dp)
+                )
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -615,6 +446,9 @@ private fun BreakCountdownOverlay(
     }
 }
 
+
+
+/*
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
@@ -627,10 +461,42 @@ fun MainScreenPreview() {
             onUpdateFocusMinutes = {},
             onUpdateBreakMinutes = {},
             onSoundEnabledChange = { _, _ -> },
-            onSoundVolumeChange = { _, _ -> }
+            onSoundVolumeChange = { _, _ -> },
+            onNewPathClick = {}
         )
     }
 }
 
+ */
 
 
+
+@Preview(
+    showBackground = true,
+    showSystemUi = true,
+    backgroundColor = 0xFF000000
+)
+@Composable
+fun MainScreenPreview() {
+
+    val previewState = TimerUiState()
+
+    FocusWaveTheme {
+        FocusScreen(
+            uiState = previewState,
+            timerOverlay = {
+                TimerControlsPanel(
+                    uiState = previewState,
+                    onStartClick = {},
+                    onPauseClick = {},
+                    onResetClick = {},
+                    onNewPathClick = {},
+                    onUpdateFocusMinutes = {},
+                    onUpdateBreakMinutes = {}
+                )
+            },
+            countdownOverlay = {},
+            soundMixerPanel = {}
+        )
+    }
+}

@@ -86,8 +86,8 @@ fun OrbitSection(
             //진행한 경로 그리기
             drawPath(
                 path = traveledPath,
-                color = Color.White,
-                style = Stroke(width = 6.5f)
+                color = Color.White.copy(alpha = 0.8f),
+                style = Stroke(width = 6f)
             )
 
             //남은 경로 그리기
@@ -119,12 +119,14 @@ fun OrbitSection(
                 // graphicsLayer 사용
                 .graphicsLayer {
                     // 1. Int로 변환하지 않고 Float(소수점) 값을 써서 오차 방지
-                    // size.width와 size.height는 40.dp가 실제 기기에서 몇 픽셀인지 알아서 계산된 값입니다.
                     translationX = position.x - (size.width / 2f)
                     translationY = position.y - (size.height / 2f)
 
-                    // 2. 중심축을 기준으로 완벽하게 회전시킵니다.
-                    rotationZ = angleInDegrees + 90f
+                    // 2. 중심축을 기준으로 완벽하게 회전
+                    rotationZ = when(progress) {
+                        in 0f .. 0.95f ->  angleInDegrees + 90f
+                        else -> angleInDegrees + 270f // 달 착륙시에 우주선 방향을 반대로 회전
+                    }
                 }
         )
     }
