@@ -1,5 +1,6 @@
 package com.yourssu.focuswave
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +37,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +58,9 @@ import com.yourssu.focuswave.ui.state.TimerPhase
 import com.yourssu.focuswave.ui.state.TimerUiState
 import com.yourssu.focuswave.ui.theme.FocusWaveTheme
 import com.yourssu.focuswave.ui.timer.TimerViewModel
+import android.view.WindowManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,14 +80,27 @@ fun MainScreen(
 ) {
     val uiState by timerViewModel.uiState.collectAsState()
 
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    DisposableEffect(uiState.isRunning) {
+        if (uiState.isRunning) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     MainScreenContent(
         uiState = uiState,
         onStartClick = timerViewModel::startTimer,
         onPauseClick = timerViewModel::pauseTimer,
         onResetClick = timerViewModel::resetTimer,
         onNewPathClick = timerViewModel::increasePathSeed,
-        onUpdateFocusMinutes = timerViewModel::updateFocusMinutes,
-        onUpdateBreakMinutes = timerViewModel::updateBreakMinutes,
+        timerViewModel = timerViewModel,
         onSoundEnabledChange = timerViewModel::setSoundEnabled,
         onSoundVolumeChange = timerViewModel::setSoundVolume
     )
@@ -91,8 +113,7 @@ private fun MainScreenContent(
     onPauseClick: () -> Unit,
     onResetClick: () -> Unit,
     onNewPathClick: () -> Unit,
-    onUpdateFocusMinutes: (Int) -> Unit,
-    onUpdateBreakMinutes: (Int) -> Unit,
+    timerViewModel: TimerViewModel,
     onSoundEnabledChange: (SoundTrackId, Boolean) -> Unit,
     onSoundVolumeChange: (SoundTrackId, Float) -> Unit
 ) {
@@ -113,8 +134,10 @@ private fun MainScreenContent(
                 onPauseClick = onPauseClick,
                 onResetClick = onResetClick,
                 onNewPathClick = onNewPathClick,
-                onUpdateFocusMinutes = onUpdateFocusMinutes,
-                onUpdateBreakMinutes = onUpdateBreakMinutes
+                onDecreaseFocus = timerViewModel::decreaseFocusMinutes,
+                onIncreaseFocus = timerViewModel::increaseFocusMinutes,
+                onDecreaseBreak = timerViewModel::decreaseBreakMinutes,
+                onIncreaseBreak = timerViewModel::increaseBreakMinutes
             )
         },
         countdownOverlay = {
@@ -207,8 +230,10 @@ private fun TimerControlsPanel(
     onPauseClick: () -> Unit,
     onResetClick: () -> Unit,
     onNewPathClick: () -> Unit,
-    onUpdateFocusMinutes: (Int) -> Unit,
-    onUpdateBreakMinutes: (Int) -> Unit,
+    onDecreaseFocus: () -> Unit,
+    onIncreaseFocus: () -> Unit,
+    onDecreaseBreak: () -> Unit,
+    onIncreaseBreak: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(8.dp)
@@ -267,8 +292,10 @@ private fun TimerControlsPanel(
             focusMinutes = uiState.focusMinutes,
             breakMinutes = uiState.breakMinutes,
             enabled = uiState.canEditDurations,
-            onUpdateFocusMinutes = onUpdateFocusMinutes,
-            onUpdateBreakMinutes = onUpdateBreakMinutes
+            onDecreaseFocus = onDecreaseFocus,
+            onIncreaseFocus = onIncreaseFocus,
+            onDecreaseBreak = onDecreaseBreak,
+            onIncreaseBreak = onIncreaseBreak
         )
 
         FlowRow(
@@ -299,8 +326,11 @@ private fun TimerDurationSettings(
     focusMinutes: Int,
     breakMinutes: Int,
     enabled: Boolean,
-    onUpdateFocusMinutes: (Int) -> Unit,
-    onUpdateBreakMinutes: (Int) -> Unit
+    onDecreaseFocus: () -> Unit,
+    onIncreaseFocus: () -> Unit,
+    onDecreaseBreak: () -> Unit,
+    onIncreaseBreak: () -> Unit,
+
 ) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -312,15 +342,15 @@ private fun TimerDurationSettings(
             label = "FOCUS",
             minutes = focusMinutes,
             enabled = enabled,
-            onDecrease = { onUpdateFocusMinutes(focusMinutes - 1) },
-            onIncrease = { onUpdateFocusMinutes(focusMinutes + 1) }
+            onDecrease = onDecreaseFocus,
+            onIncrease = onIncreaseFocus
         )
         DurationStepper(
             label = "BREAK",
             minutes = breakMinutes,
             enabled = enabled,
-            onDecrease = { onUpdateBreakMinutes(breakMinutes - 1) },
-            onIncrease = { onUpdateBreakMinutes(breakMinutes + 1) }
+            onDecrease = onDecreaseBreak,
+            onIncrease = onIncreaseBreak
         )
     }
 }
@@ -344,7 +374,12 @@ private fun DurationStepper(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        StepperButton(text = "-", enabled = enabled, onClick = onDecrease)
+        StepperButton(
+            text = "-",
+            enabled = enabled,
+            onClick = onDecrease
+        )
+
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = label,
@@ -357,7 +392,12 @@ private fun DurationStepper(
                 style = MaterialTheme.typography.bodyMedium
             )
         }
-        StepperButton(text = "+", enabled = enabled, onClick = onIncrease)
+
+        StepperButton(
+            text = "+",
+            enabled = enabled,
+            onClick = onIncrease
+        )
     }
 }
 
@@ -373,14 +413,43 @@ private fun StepperButton(
     Box(
         modifier = Modifier
             .size(44.dp)
-            .shadow(
-                elevation = if (enabled) 4.dp else 0.dp,
-                shape = shape,
-                clip = false
-            )
             .background(Color.White.copy(alpha = if (enabled) 0.20f else 0.08f), shape)
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = if (enabled) 0.34f else 0.12f)), shape)
-            .clickable(enabled = enabled, onClick = onClick),
+            .border(
+                BorderStroke(
+                    1.dp,
+                    Color.White.copy(alpha = if (enabled) 0.34f else 0.12f)
+                ),
+                shape
+            )
+            .pointerInput(enabled) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    if (!enabled) {
+                        waitForUpOrCancellation()
+                        return@awaitEachGesture
+                    }
+                    down.consume()
+                    val releasedBeforeLongPress = withTimeoutOrNull(450L) {
+                        waitForUpOrCancellation()
+                    }
+                    if (releasedBeforeLongPress != null) {
+                        releasedBeforeLongPress.consume()
+                        onClick()
+                        return@awaitEachGesture
+                    }
+                    onClick()
+                    while (true) {
+                        val up = withTimeoutOrNull(100L) {
+                            waitForUpOrCancellation()
+                        }
+                        if (up != null) {
+                            up.consume()
+                            break
+                        }
+                        onClick()
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -493,8 +562,10 @@ fun MainScreenPreview() {
                     onPauseClick = {},
                     onResetClick = {},
                     onNewPathClick = {},
-                    onUpdateFocusMinutes = {},
-                    onUpdateBreakMinutes = {}
+                    onIncreaseBreak = {},
+                    onIncreaseFocus = {},
+                    onDecreaseFocus = {},
+                    onDecreaseBreak = {}
                 )
             },
             countdownOverlay = {},

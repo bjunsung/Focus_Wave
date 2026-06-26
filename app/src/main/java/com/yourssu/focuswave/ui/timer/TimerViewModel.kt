@@ -51,6 +51,30 @@ class TimerViewModel : ViewModel() {
         }
     }
 
+    fun decreaseFocusMinutes() {
+        _uiState.update { state ->
+            state.copy(focusMinutes = (state.focusMinutes - 1).coerceAtLeast(1))
+        }
+    }
+
+    fun increaseFocusMinutes() {
+        _uiState.update { state ->
+            state.copy(focusMinutes = (state.focusMinutes + 1).coerceAtMost(180))
+        }
+    }
+
+    fun decreaseBreakMinutes() {
+        _uiState.update { state ->
+            state.copy(breakMinutes = (state.breakMinutes - 1).coerceAtLeast(1))
+        }
+    }
+
+    fun increaseBreakMinutes() {
+        _uiState.update { state ->
+            state.copy(breakMinutes = (state.breakMinutes + 1).coerceAtMost(60))
+        }
+    }
+
     fun startTimer() {
         val currentState = _uiState.value
         if (timerJob?.isActive == true || currentState.isRunning) return

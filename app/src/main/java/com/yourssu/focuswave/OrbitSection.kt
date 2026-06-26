@@ -114,12 +114,12 @@ fun OrbitSection(
             )
             drawCircle(
                 color = Color.Black.copy(alpha = 0.22f),
-                radius = size.minDimension * 0.42f,
+                radius = earthSize.toPx() * 2.5f,
                 center = androidx.compose.ui.geometry.Offset(earthCenterX, earthCenterY)
             )
             drawCircle(
                 color = Color.Black.copy(alpha = 0.18f),
-                radius = size.minDimension * 0.34f,
+                radius = moonSize.toPx() * 2.5f,
                 center = androidx.compose.ui.geometry.Offset(moonCenterX, moonCenterY)
             )
             drawCircle(
@@ -194,7 +194,9 @@ fun OrbitSection(
                 .graphicsLayer {
                     translationX = position.x - (size.width / 2f)
                     translationY = position.y - (size.height / 2f)
-                    rotationZ = angleInDegrees + 90f
+                    rotationZ = if (progress < 0.9f)
+                        angleInDegrees + 90f else
+                        angleInDegrees + 270f
                 }
         )
     }
@@ -252,8 +254,8 @@ private fun RouteStagePill(
     modifier: Modifier = Modifier
 ) {
     val stage = when {
-        progress < 0.34f -> "LAUNCH"
-        progress < 0.67f -> "FLIGHT"
+        progress < 0.2f -> "LAUNCH"
+        progress < 0.8f -> "FLIGHT"
         else -> "ARRIVAL"
     }
 
