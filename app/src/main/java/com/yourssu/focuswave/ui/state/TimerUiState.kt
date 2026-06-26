@@ -12,7 +12,7 @@ data class TimerUiState(
     val isRunning: Boolean = false,
     val activePhase: TimerPhase = TimerPhase.FOCUS,
     val soundTracks: List<SoundTrackUiState> = defaultSoundTracks,
-    var pathSeed: Int = Random.nextInt()
+    val pathSeed: Int = Random.nextInt()
 ) {
     val formattedTime: String
         get() {
@@ -36,7 +36,13 @@ data class TimerUiState(
         }
 
     val statusText: String
-        get() = phase.name
+        get() = when (phase) {
+            TimerPhase.READY -> "READY"
+            TimerPhase.FOCUS -> "FOCUS"
+            TimerPhase.BREAK -> "BREAK"
+            TimerPhase.PAUSED -> "PAUSED"
+            TimerPhase.FINISHED -> "FINISHED"
+        }
 
     val canEditDurations: Boolean
         get() = !isRunning

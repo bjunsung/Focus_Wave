@@ -13,13 +13,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 class TimerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
+    private var pausedSoundSnapshot: Map<SoundTrackId, Float> = emptyMap()
 
     fun updateFocusMinutes(minutes: Int) {
         val nextMinutes = minutes.coerceIn(MIN_MINUTES, MAX_MINUTES)
@@ -67,16 +67,22 @@ class TimerViewModel : ViewModel() {
         timerJob = null
         _uiState.update { currentState ->
             if (!currentState.isRunning) return@update currentState
+
+            pausedSoundSnapshot = currentState.soundTracks
+                .filter { it.isEnabled }
+                .associate { it.id to it.volume }
+
             currentState.copy(
                 phase = TimerPhase.PAUSED,
                 isRunning = false
-            ).withAllSoundsStopped()
+            )
         }
     }
 
     fun resetTimer() {
         timerJob?.cancel()
         timerJob = null
+        pausedSoundSnapshot = emptyMap()
         _uiState.update { currentState ->
             currentState.copy(
                 totalSeconds = currentState.focusMinutes * SECONDS_PER_MINUTE,
@@ -84,8 +90,7 @@ class TimerViewModel : ViewModel() {
                 phase = TimerPhase.READY,
                 activePhase = TimerPhase.FOCUS,
                 isRunning = false,
-                // 리셋버튼 클릭시 랜덤 경로로 초기화 로직 추가
-                pathSeed = uiState.value.pathSeed + 1
+                pathSeed = currentState.pathSeed + 1
             ).withAllSoundsStopped()
         }
     }
@@ -93,6 +98,7 @@ class TimerViewModel : ViewModel() {
     fun startFocusPhase() {
         timerJob?.cancel()
         timerJob = null
+        pausedSoundSnapshot = emptyMap()
         _uiState.update { currentState ->
             currentState.copy(
                 totalSeconds = currentState.focusMinutes * SECONDS_PER_MINUTE,
@@ -140,6 +146,12 @@ class TimerViewModel : ViewModel() {
         }
     }
 
+    fun increasePathSeed() {
+        _uiState.update { currentState ->
+            currentState.copy(pathSeed = currentState.pathSeed + 1)
+        }
+    }
+
     override fun onCleared() {
         timerJob?.cancel()
         super.onCleared()
@@ -152,15 +164,32 @@ class TimerViewModel : ViewModel() {
                 TimerPhase.FOCUS, TimerPhase.BREAK -> currentState.phase
                 TimerPhase.READY, TimerPhase.FINISHED -> TimerPhase.FOCUS
             }
+            val restoredSoundTracks = restorePausedSoundTracks(currentState)
+            pausedSoundSnapshot = emptyMap()
 
             currentState.copy(
                 phase = resumePhase,
                 activePhase = resumePhase,
-                isRunning = true
+                isRunning = true,
+                soundTracks = restoredSoundTracks
             )
         }
         launchTimer()
     }
+
+    private fun restorePausedSoundTracks(currentState: TimerUiState) =
+        if (currentState.phase == TimerPhase.PAUSED) {
+            currentState.soundTracks.map { track ->
+                val pausedVolume = pausedSoundSnapshot[track.id]
+                when {
+                    pausedVolume == null -> track.copy(isEnabled = false)
+                    track.isEnabled -> track.copy(isEnabled = true, volume = pausedVolume)
+                    else -> track.copy(isEnabled = false)
+                }
+            }
+        } else {
+            currentState.soundTracks
+        }
 
     private fun launchTimer() {
         if (timerJob?.isActive == true) return
@@ -202,9 +231,11 @@ class TimerViewModel : ViewModel() {
                 TimerPhase.BREAK -> {
                     shouldContinue = false
                     timerJob = null
+                    pausedSoundSnapshot = emptyMap()
                     currentState.copy(
                         remainingSeconds = 0,
                         phase = TimerPhase.FINISHED,
+                        activePhase = TimerPhase.FINISHED,
                         isRunning = false
                     ).withAllSoundsStopped()
                 }
@@ -221,16 +252,6 @@ class TimerViewModel : ViewModel() {
 
         return shouldContinue
     }
-
-
-    fun increasePathSeed() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                pathSeed = uiState.value.pathSeed + 1
-            )
-        }
-    }
-
 }
 
 private fun TimerUiState.withAllSoundsStopped(): TimerUiState = copy(
