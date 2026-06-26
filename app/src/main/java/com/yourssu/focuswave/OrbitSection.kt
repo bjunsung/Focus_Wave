@@ -1,30 +1,37 @@
 package com.yourssu.focuswave
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.atan2
-import kotlin.random.Random
 
 @Composable
 fun OrbitSection(
@@ -33,101 +40,232 @@ fun OrbitSection(
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier) {
-        //0. 사이즈 설정
+        val density = LocalDensity.current
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
-        val moonSize = 40.dp
-        val earthSize = 40.dp
-        val rocketSize = 80.dp
+        val compact = maxWidth < 420.dp || maxHeight < 300.dp
+        val veryCompact = maxHeight < 230.dp
+        val clampedProgress = progress.coerceIn(0f, 1f)
 
-        //1. S자 궤도 한 번만 생성
-        val density = LocalDensity.current
-
-        val path = remember(width, height, pathSeed) {
-            with(density) {
-                OrbitUtil.generateRandomOrbitPath(
-                    pathSeed,
-                    width,
-                    height,
-                    height - earthSize.toPx() / 2f,
-                    moonSize.toPx() / 2f,
-                )
-            }
+        val earthSize = when {
+            veryCompact -> 42.dp
+            compact -> 50.dp
+            else -> 64.dp
+        }
+        val moonSize = when {
+            veryCompact -> 36.dp
+            compact -> 42.dp
+            else -> 54.dp
+        }
+        val rocketSize = when {
+            veryCompact -> 48.dp
+            compact -> 58.dp
+            else -> 74.dp
+        }
+        val markerBoxSize = when {
+            veryCompact -> 96.dp
+            compact -> 112.dp
+            else -> 136.dp
         }
 
-        //2. 궤도 측량 및 좌표/각도 계산
+        val markerBoxPx = with(density) { markerBoxSize.toPx() }
+        val edgePaddingPx = with(density) { if (compact) 10.dp.toPx() else 18.dp.toPx() }
+        val markerCenterInset = markerBoxPx * 0.5f + edgePaddingPx
+        val earthCenterX = markerCenterInset.coerceAtMost(width * 0.34f)
+        val moonCenterX = (width - markerCenterInset).coerceAtLeast(width * 0.66f)
+        val earthCenterY = (height - markerCenterInset).coerceAtLeast(height * 0.58f)
+        val moonCenterY = markerCenterInset.coerceAtMost(height * 0.42f)
+
+        val path = remember(width, height, pathSeed, earthCenterX, earthCenterY, moonCenterX, moonCenterY) {
+            OrbitUtil.generateJourneyPath(
+                pathSeed = pathSeed,
+                width = width,
+                height = height,
+                startX = earthCenterX,
+                startY = earthCenterY,
+                endX = moonCenterX,
+                endY = moonCenterY
+            )
+        }
+
         val pathMeasure = remember(path) {
-            PathMeasure().apply {
-                //마지막 점에서 시작점으로 직선으로 닫는 선 제거 (forceClosed = false)
-                setPath(path, false)
-            }
+            PathMeasure().apply { setPath(path, false) }
         }
 
-        val currentDistance = pathMeasure.length * progress
+        val currentDistance = pathMeasure.length * clampedProgress
         val position = pathMeasure.getPosition(currentDistance)
         val tangent = pathMeasure.getTangent(currentDistance)
         val angleInDegrees = if (tangent.x != 0f || tangent.y != 0f) {
-            (atan2(tangent.y, tangent.x) * (180f / PI.toFloat()))
+            atan2(tangent.y, tangent.x) * (180f / PI.toFloat())
         } else {
-            0f
+            -35f
         }
 
-        //3. 우주에 궤도 선 그리기 (실선 + 점선)
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val traveledPath = Path()
             val remainingPath = Path()
 
             pathMeasure.getSegment(0f, currentDistance, traveledPath, true)
             pathMeasure.getSegment(currentDistance, pathMeasure.length, remainingPath, true)
 
-            //진행한 경로 그리기
-            drawPath(
-                path = traveledPath,
-                color = Color.White.copy(alpha = 0.8f),
-                style = Stroke(width = 6f)
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.20f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(30f, 30f)
+            )
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.22f),
+                radius = size.minDimension * 0.42f,
+                center = androidx.compose.ui.geometry.Offset(earthCenterX, earthCenterY)
+            )
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.18f),
+                radius = size.minDimension * 0.34f,
+                center = androidx.compose.ui.geometry.Offset(moonCenterX, moonCenterY)
+            )
+            drawCircle(
+                color = Color(0xFF5BE7FF).copy(alpha = 0.22f),
+                radius = markerBoxPx * 0.42f,
+                center = androidx.compose.ui.geometry.Offset(earthCenterX, earthCenterY)
+            )
+            drawCircle(
+                color = Color(0xFFFFF3B0).copy(alpha = 0.18f),
+                radius = markerBoxPx * 0.36f,
+                center = androidx.compose.ui.geometry.Offset(moonCenterX, moonCenterY)
             )
 
-            //남은 경로 그리기
+            drawPath(
+                path = path,
+                color = Color.Black.copy(alpha = 0.42f),
+                style = Stroke(width = 9f, cap = StrokeCap.Round)
+            )
             drawPath(
                 path = remainingPath,
-                color = Color.White.copy(alpha = 0.5f),
-                style = Stroke(width = 5.0f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 20f), 0f))
+                color = Color.White.copy(alpha = 0.34f),
+                style = Stroke(
+                    width = 5f,
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 14f), 0f)
+                )
+            )
+            drawPath(
+                path = traveledPath,
+                color = Color(0xFF8FEFFF).copy(alpha = 0.92f),
+                style = Stroke(width = 6f, cap = StrokeCap.Round)
+            )
+            drawPath(
+                path = traveledPath,
+                color = Color.White.copy(alpha = 0.56f),
+                style = Stroke(width = 2.4f, cap = StrokeCap.Round)
             )
         }
 
-        // 4. 행성과 로켓 배치
-        Image(
-            painter = painterResource(id = R.drawable.moon),
-            contentDescription = "달",
-            modifier = Modifier.size(moonSize).align(Alignment.TopCenter)
+        JourneyMarker(
+            centerX = earthCenterX,
+            centerY = earthCenterY,
+            markerSize = markerBoxSize,
+            imageSize = earthSize,
+            imageResId = R.drawable.earth,
+            contentDescription = "Earth start point",
+            label = "START",
+            labelAlignment = Alignment.TopCenter
         )
 
-        Image(
-            painter = painterResource(id = R.drawable.earth),
-            contentDescription = "지구",
-            modifier = Modifier.size(earthSize).align(Alignment.BottomCenter)
+        JourneyMarker(
+            centerX = moonCenterX,
+            centerY = moonCenterY,
+            markerSize = markerBoxSize,
+            imageSize = moonSize,
+            imageResId = R.drawable.moon,
+            contentDescription = "Moon goal point",
+            label = "GOAL",
+            labelAlignment = Alignment.BottomCenter
+        )
+
+        RouteStagePill(
+            progress = clampedProgress,
+            modifier = Modifier.align(Alignment.TopCenter)
         )
 
         Image(
             painter = painterResource(id = R.drawable.rocket1),
-            contentDescription = "로켓",
+            contentDescription = "Rocket",
             modifier = Modifier
                 .size(rocketSize)
-                // graphicsLayer 사용
                 .graphicsLayer {
-                    // 1. Int로 변환하지 않고 Float(소수점) 값을 써서 오차 방지
                     translationX = position.x - (size.width / 2f)
                     translationY = position.y - (size.height / 2f)
-
-                    // 2. 중심축을 기준으로 완벽하게 회전
-                    rotationZ = when(progress) {
-                        in 0f .. 0.95f ->  angleInDegrees + 90f
-                        else -> angleInDegrees + 270f // 달 착륙시에 우주선 방향을 반대로 회전
-                    }
+                    rotationZ = angleInDegrees + 90f
                 }
         )
     }
+}
+
+@Composable
+private fun JourneyMarker(
+    centerX: Float,
+    centerY: Float,
+    markerSize: Dp,
+    imageSize: Dp,
+    imageResId: Int,
+    contentDescription: String,
+    label: String,
+    labelAlignment: Alignment,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(markerSize)
+            .graphicsLayer {
+                translationX = centerX - size.width / 2f
+                translationY = centerY - size.height / 2f
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(Color.Black.copy(alpha = 0.34f), radius = size.minDimension * 0.42f)
+            drawCircle(Color.White.copy(alpha = 0.12f), radius = size.minDimension * 0.30f)
+        }
+        Image(
+            painter = painterResource(id = imageResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(imageSize)
+        )
+        Text(
+            text = label,
+            modifier = Modifier
+                .align(labelAlignment)
+                .background(Color.Black.copy(alpha = 0.46f), RoundedCornerShape(8.dp))
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun RouteStagePill(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    val stage = when {
+        progress < 0.34f -> "LAUNCH"
+        progress < 0.67f -> "FLIGHT"
+        else -> "ARRIVAL"
+    }
+
+    Text(
+        text = stage,
+        modifier = modifier
+            .padding(top = 6.dp)
+            .background(Color.Black.copy(alpha = 0.34f), RoundedCornerShape(8.dp))
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        color = Color.White.copy(alpha = 0.86f),
+        style = MaterialTheme.typography.labelSmall,
+        textAlign = TextAlign.Center
+    )
 }

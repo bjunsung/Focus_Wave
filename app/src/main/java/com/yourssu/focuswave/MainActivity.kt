@@ -8,6 +8,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +19,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -94,7 +96,13 @@ private fun MainScreenContent(
     onSoundEnabledChange: (SoundTrackId, Boolean) -> Unit,
     onSoundVolumeChange: (SoundTrackId, Float) -> Unit
 ) {
-    SoundPlaybackEffect(soundTracks = uiState.soundTracks)
+    val playbackSoundTracks = if (uiState.phase == TimerPhase.PAUSED) {
+        uiState.soundTracks.map { it.copy(isEnabled = false) }
+    } else {
+        uiState.soundTracks
+    }
+
+    SoundPlaybackEffect(soundTracks = playbackSoundTracks)
 
     FocusScreen(
         uiState = uiState,
@@ -139,28 +147,37 @@ private fun FocusScreen(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent
         ) { innerPadding ->
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 타이머 오버레이
-                timerOverlay()
+                val compactHeight = maxHeight < 720.dp
+                val horizontalPadding = if (compactHeight) 12.dp else 16.dp
+                val verticalPadding = if (compactHeight) 8.dp else 12.dp
+                val sectionGap = if (compactHeight) 8.dp else 12.dp
+                val orbitMinHeight = if (compactHeight) 170.dp else 220.dp
 
-                // 지구, 로켓, 달, 궤도 오버레이
-                OrbitSection(
-                    progress = uiState.progress,
-                    uiState.pathSeed,
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                )
+                        .fillMaxSize()
+                        .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(sectionGap)
+                ) {
+                    timerOverlay()
 
-                // 사운드 믹서 패널 오버레이
-                soundMixerPanel()
+                    OrbitSection(
+                        progress = uiState.progress,
+                        pathSeed = uiState.pathSeed,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .heightIn(min = orbitMinHeight)
+                    )
+
+                    soundMixerPanel()
+                }
             }
         }
 
@@ -195,10 +212,14 @@ private fun TimerControlsPanel(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(8.dp)
+    val journeyText = OrbitUtil.getStateByProgress(
+        progress = uiState.progress,
+        phase = uiState.phase,
+        isRunning = uiState.isRunning
+    )
 
     Column(
         modifier = modifier
-            //.statusBarsPadding()
             .fillMaxWidth()
             .background(Color.White.copy(alpha = 0.12f), shape)
             .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)), shape)
@@ -221,10 +242,9 @@ private fun TimerControlsPanel(
                     color = Color.White.copy(alpha = 0.72f),
                     style = MaterialTheme.typography.bodySmall
                 )
-                // 진행률에 따른 우주선 상태 메시지
                 Text(
-                    text = "우주선 ${OrbitUtil.getStateByProgress(uiState.progress, uiState.isRunning)}",
-                    color = Color.White.copy(alpha = 0.72f),
+                    text = journeyText,
+                    color = Color.White.copy(alpha = 0.78f),
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -258,13 +278,7 @@ private fun TimerControlsPanel(
             maxItemsInEachRow = 4
         ) {
             TimerActionButton(
-                text = when (uiState.phase) {
-                    TimerPhase.PAUSED -> "RESUME"
-                    TimerPhase.FOCUS,
-                    TimerPhase.BREAK -> "START"
-                    TimerPhase.READY,
-                    TimerPhase.FINISHED -> "START"
-                },
+                text = if (uiState.phase == TimerPhase.PAUSED) "RESUME" else "START",
                 onClick = onStartClick,
                 enabled = !uiState.isRunning
             )
@@ -323,10 +337,10 @@ private fun DurationStepper(
 
     Row(
         modifier = Modifier
-            .width(152.dp)
+            .width(146.dp)
             .background(Color.White.copy(alpha = 0.1f), shape)
             .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)), shape)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -353,15 +367,28 @@ private fun StepperButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    ElevatedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(width = 36.dp, height = 32.dp),
-        shape = RoundedCornerShape(8.dp),
-        contentPadding = ButtonDefaults.ContentPadding,
-        elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 3.dp)
+    val shape = RoundedCornerShape(10.dp)
+    val contentAlpha = if (enabled) 1f else 0.38f
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .shadow(
+                elevation = if (enabled) 4.dp else 0.dp,
+                shape = shape,
+                clip = false
+            )
+            .background(Color.White.copy(alpha = if (enabled) 0.20f else 0.08f), shape)
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = if (enabled) 0.34f else 0.12f)), shape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Text(text = text, style = MaterialTheme.typography.labelMedium)
+        Text(
+            text = text,
+            color = Color.White.copy(alpha = contentAlpha),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -406,6 +433,7 @@ private fun TimerActionButton(
         )
     }
 }
+
 @Composable
 private fun BreakCountdownOverlay(
     isVisible: Boolean,
@@ -446,31 +474,6 @@ private fun BreakCountdownOverlay(
     }
 }
 
-
-
-/*
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    FocusWaveTheme {
-        MainScreenContent(
-            uiState = TimerUiState(),
-            onStartClick = {},
-            onPauseClick = {},
-            onResetClick = {},
-            onUpdateFocusMinutes = {},
-            onUpdateBreakMinutes = {},
-            onSoundEnabledChange = { _, _ -> },
-            onSoundVolumeChange = { _, _ -> },
-            onNewPathClick = {}
-        )
-    }
-}
-
- */
-
-
-
 @Preview(
     showBackground = true,
     showSystemUi = true,
@@ -478,7 +481,6 @@ fun MainScreenPreview() {
 )
 @Composable
 fun MainScreenPreview() {
-
     val previewState = TimerUiState()
 
     FocusWaveTheme {
