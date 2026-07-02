@@ -40,7 +40,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,7 +59,12 @@ import com.yourssu.focuswave.ui.theme.FocusWaveTheme
 import com.yourssu.focuswave.ui.timer.TimerViewModel
 import android.view.WindowManager
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import com.yourssu.focuswave.ui.fileshare.FileShareOverlay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,6 +121,7 @@ private fun MainScreenContent(
     onSoundEnabledChange: (SoundTrackId, Boolean) -> Unit,
     onSoundVolumeChange: (SoundTrackId, Float) -> Unit
 ) {
+    var showFileShare by remember { mutableStateOf(false) }
     val playbackSoundTracks = if (uiState.phase == TimerPhase.PAUSED) {
         uiState.soundTracks.map { it.copy(isEnabled = false) }
     } else {
@@ -152,6 +157,16 @@ private fun MainScreenContent(
                 onEnabledChange = onSoundEnabledChange,
                 onVolumeChange = onSoundVolumeChange
             )
+        },
+        fileShareOverlay = {
+            if (showFileShare) {
+                FileShareOverlay(
+                    onDismiss = { showFileShare = false }
+                )
+            }
+        },
+        onFileShareClick = {
+            showFileShare = true
         }
     )
 }
@@ -162,6 +177,8 @@ private fun FocusScreen(
     timerOverlay: @Composable () -> Unit,
     countdownOverlay: @Composable () -> Unit,
     soundMixerPanel: @Composable () -> Unit,
+    fileShareOverlay: @Composable () -> Unit = {},
+    onFileShareClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -190,6 +207,7 @@ private fun FocusScreen(
                 ) {
                     timerOverlay()
 
+
                     OrbitSection(
                         progress = uiState.progress,
                         pathSeed = uiState.pathSeed,
@@ -204,7 +222,21 @@ private fun FocusScreen(
             }
         }
 
+        ElevatedButton(
+            onClick = onFileShareClick,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 36.dp),
+            colors = ButtonDefaults.elevatedButtonColors(
+                containerColor = Color(0xFF8A86E6),
+                contentColor = Color.White
+            )
+        ) {
+            Text("FILE")
+        }
+
         countdownOverlay()
+        fileShareOverlay()
     }
 }
 
@@ -569,7 +601,9 @@ fun MainScreenPreview() {
                 )
             },
             countdownOverlay = {},
-            soundMixerPanel = {}
+            soundMixerPanel = {},
+            fileShareOverlay = {},
+            onFileShareClick = {}
         )
     }
 }
